@@ -134,7 +134,7 @@ static bool create_data_reader(uxrSession *session, uxrStreamId reliable_out_str
 
 	uxrQoS_t qos = {
 		.durability = UXR_DURABILITY_VOLATILE,
-		.reliability = UXR_RELIABILITY_BEST_EFFORT,
+		.reliability = UXR_RELIABILITY_RELIABLE,
 		.history = UXR_HISTORY_KEEP_LAST,
 		.depth = queue_depth,
 	};
