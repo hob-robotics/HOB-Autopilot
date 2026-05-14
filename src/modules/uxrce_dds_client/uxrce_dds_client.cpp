@@ -973,10 +973,10 @@ int UxrceddsClient::custom_command(int argc, char *argv[])
 
 int UxrceddsClient::task_spawn(int argc, char *argv[])
 {
-	// Above commander/gps/mavlink_rcv; below logger and flight-control wq.
+	// Slight bump above default; stays below commander (140) so failsafe always preempts.
 	_task_id = px4_task_spawn_cmd("uxrce_dds_client",
 				      SCHED_DEFAULT,
-				      SCHED_PRIORITY_DEFAULT + 120,
+				      SCHED_PRIORITY_DEFAULT + 30,
 				      PX4_STACK_ADJUSTED(8000),
 				      (px4_main_t)&run_trampoline,
 				      (char *const *)argv);

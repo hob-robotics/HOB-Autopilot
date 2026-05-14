@@ -53,7 +53,7 @@
 #include "srv_base.h"
 
 #define MAX_NUM_REPLIERS 5
-#define STREAM_HISTORY  16
+#define STREAM_HISTORY  4
 #define BUFFER_SIZE (UXR_CONFIG_SERIAL_TRANSPORT_MTU * STREAM_HISTORY) // MTU==512 by default
 
 class UxrceddsClient : public ModuleBase<UxrceddsClient>, public ModuleParams
