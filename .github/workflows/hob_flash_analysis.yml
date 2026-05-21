@@ -60,12 +60,33 @@ jobs:
       - name: Install PX4 toolchain
         run: bash ./Tools/setup/ubuntu.sh --no-sim-tools
 
-      - name: Install bloaty
-        # bloaty lives in Ubuntu 22.04 universe; the runner's apt cache may
-        # be stale by the time this step runs, so refresh before install.
+      - name: Cache bloaty binary
+        # bloaty is not reliably available via apt on GitHub runners. We
+        # build from source and cache the resulting binary so subsequent
+        # runs reuse it instead of recompiling (~2 min saved per run).
+        # Cache key is keyed on bloaty version + runner OS/arch, so a
+        # bloaty bump invalidates the cache automatically.
+        id: bloaty-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/bloaty-bin/bloaty
+          key: bloaty-v1.1-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Build bloaty (cache miss only)
+        if: steps.bloaty-cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bloaty
+          git clone --depth 1 --branch v1.1 --recursive \
+            https://github.com/google/bloaty.git /tmp/bloaty-src
+          cmake -S /tmp/bloaty-src -B /tmp/bloaty-build \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/bloaty-build -j"$(nproc)"
+          mkdir -p /tmp/bloaty-bin
+          install -m 0755 /tmp/bloaty-build/bloaty /tmp/bloaty-bin/bloaty
+
+      - name: Install + verify bloaty
+        run: |
+          sudo install -m 0755 /tmp/bloaty-bin/bloaty /usr/local/bin/bloaty
+          bloaty --version
 
       - name: Build PR branch
         run: make ${{ matrix.target }}
