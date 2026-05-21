@@ -11,11 +11,13 @@ name: HOB Build FMU Matrix
 #   - gcc-arm-none-eabi:   apt default on Ubuntu 22.04 (10.3-2021.10)
 
 on:
+  # On push we only validate the integration branches (dev, main). Feature
+  # branches are covered by the pull_request trigger below — running both on
+  # the same commit duplicates the build and wastes Actions minutes.
   push:
     branches:
       - dev
       - main
-      - 'feature/**'
     paths-ignore:
       - 'docs/**'
       - '**/*.md'

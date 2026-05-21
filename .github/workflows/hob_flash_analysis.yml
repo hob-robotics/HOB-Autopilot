@@ -61,7 +61,11 @@ jobs:
         run: bash ./Tools/setup/ubuntu.sh --no-sim-tools
 
       - name: Install bloaty
-        run: sudo apt-get install -y bloaty
+        # bloaty lives in Ubuntu 22.04 universe; the runner's apt cache may
+        # be stale by the time this step runs, so refresh before install.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bloaty
 
       - name: Build PR branch
         run: make ${{ matrix.target }}
