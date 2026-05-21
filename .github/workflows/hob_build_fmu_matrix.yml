@@ -1,0 +1,82 @@
+name: HOB Build FMU Matrix
+
+# Builds HOB firmware for supported Pixhawk targets.
+# Currently builds only px4_fmu-v5_default (Pixhawk 4).
+# To enable Pixhawk 6c mini support once the hardware arrives, add
+# `- px4_fmu-v6c_default` to matrix.target below.
+#
+# Toolchain pinning for reproducibility:
+#   - Runner OS:           ubuntu-22.04 (pin, do not use ubuntu-latest)
+#   - Python:              3.10 (PX4 EmPy + tooling tested on 3.10)
+#   - gcc-arm-none-eabi:   apt default on Ubuntu 22.04 (10.3-2021.10)
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - 'feature/**'
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - px4_fmu-v5_default
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install PX4 toolchain
+        run: bash ./Tools/setup/ubuntu.sh --no-sim-tools
+
+      - name: Build ${{ matrix.target }}
+        run: make ${{ matrix.target }}
+
+      - name: Report binary size totals
+        # Quick at-a-glance size in the run summary. Detailed PR-vs-base
+        # comparison lives in hob_flash_analysis.yml (bloaty).
+        run: |
+          ELF=$(find build/${{ matrix.target }} -maxdepth 2 -name '*.elf' | head -1)
+          echo "### Binary size: \`${{ matrix.target }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          arm-none-eabi-size "$ELF" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hob-firmware-${{ matrix.target }}-${{ github.sha }}
+          path: build/${{ matrix.target }}/*.px4
+          retention-days: 90
+          if-no-files-found: error

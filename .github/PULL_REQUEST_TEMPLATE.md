@@ -1,37 +1,17 @@
-<!--
+## Summary
+<!-- What does this PR change and why? Link memory notes / trial IDs if relevant. -->
 
-Thank you for your contribution!
+## Test plan
+<!-- How was this validated? Bench? SITL? Hardware trial? Provide trial number, dates, log paths. -->
 
-Get early feedback through
-- Dronecode Discord: https://discord.gg/dronecode
-- PX4 Discuss: http://discuss.px4.io/
-- opening a draft pr and sharing the link
+## Affected hardware / target
+- [ ] `px4_fmu-v5_default` (Pixhawk 4)
+- [ ] `px4_fmu-v6c_default` (Pixhawk 6c mini)
+- [ ] Companion only (`drone_humble` mamba env, ROS 2 Humble)
+- [ ] Tooling / CI only — no firmware change
 
--->
+## Risk
+<!-- What could break? Failsafe-relevant? Tuning-sensitive? Stack/flash impact? -->
 
-### Solved Problem
-When ... I found that ...
-
-Fixes #{Github issue ID}
-
-### Solution
-- Add ... for ...
-- Refactor ...
-
-### Changelog Entry
-For release notes:
-```
-Feature/Bugfix XYZ
-New parameter: XYZ_Z
-Documentation: Need to clarify page ... / done, read docs.px4.io/...
-```
-
-### Alternatives
-We could also ...
-
-### Test coverage
-- Unit/integration test: ...
-- Simulation/hardware testing logs: https://review.px4.io/
-
-### Context
-Related links, screenshot before/after, video
+## Related
+<!-- Issue / memory / prior PR links. -->

@@ -1,0 +1,147 @@
+name: HOB Flash Analysis
+
+# Per-PR binary size comparison using bloaty.
+# Compiles the firmware twice — once for the PR branch and once for the base
+# branch — then runs bloaty to report which functions / files grew or shrunk,
+# and posts the diff as a comment on the PR.
+#
+# Cost: ~16 minutes per PR (two full builds). Adapted from upstream PX4's
+# flash_analysis.yml. Trade-off accepted because we are developing for
+# production and flash usage discipline matters.
+#
+# Toolchain pinning matches hob_build_fmu_matrix.yml:
+#   - Runner OS:           ubuntu-22.04
+#   - Python:              3.10
+#   - gcc-arm-none-eabi:   apt default on Ubuntu 22.04
+#   - bloaty:              apt default on Ubuntu 22.04 (1.1)
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze_flash:
+    name: Analyze flash ${{ matrix.target }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - px4_fmu-v5_default
+    outputs:
+      v5_diff: ${{ steps.gen-output.outputs.diff }}
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install PX4 toolchain
+        run: bash ./Tools/setup/ubuntu.sh --no-sim-tools
+
+      - name: Install bloaty
+        run: sudo apt-get install -y bloaty
+
+      - name: Build PR branch
+        run: make ${{ matrix.target }}
+
+      - name: Save PR elf
+        run: cp build/${{ matrix.target }}/*.elf /tmp/pr.elf
+
+      - name: Clean build outputs
+        run: |
+          make clean
+          make distclean
+
+      - name: Checkout base branch
+        run: git checkout ${{ github.event.pull_request.base.ref }}
+
+      - name: Update submodules for base branch
+        run: make submodulesupdate
+
+      - name: Build base branch
+        run: make ${{ matrix.target }}
+
+      - name: Save base elf
+        run: cp build/${{ matrix.target }}/*.elf /tmp/base.elf
+
+      - name: Run bloaty diff
+        run: |
+          bloaty /tmp/pr.elf -- /tmp/base.elf \
+            -d sections,symbols -s vm -n 20 > /tmp/diff.txt
+          cat /tmp/diff.txt
+
+      - name: Capture diff for PR comment
+        id: gen-output
+        run: |
+          {
+            echo 'diff<<BLOATY_EOF'
+            cat /tmp/diff.txt
+            echo 'BLOATY_EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Append diff to run summary
+        run: |
+          echo "### FLASH analysis ${{ matrix.target }} (bloaty)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/diff.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  post_pr_comment:
+    name: Post PR comment
+    runs-on: ubuntu-22.04
+    needs: analyze_flash
+    if: github.event.pull_request
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Find existing flash comment
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: HOB FLASH analysis
+
+      - name: Post / update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            ## HOB FLASH analysis
+
+            Bloaty comparison of `px4_fmu-v5_default.elf` — this PR vs base branch (`${{ github.event.pull_request.base.ref }}`).
+
+            <details>
+            <summary>Diff (top 20 sections / symbols by VM size)</summary>
+
+            ```
+            ${{ needs.analyze_flash.outputs.v5_diff }}
+            ```
+
+            </details>
+
+            _Updated automatically by `hob_flash_analysis.yml`._

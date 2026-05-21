@@ -1,0 +1,44 @@
+name: HOB Checks
+
+# Lightweight code style + sanity checks that gate PRs without paying the cost
+# of a full firmware build. Runs in ~2 minutes; intentionally narrower than
+# upstream PX4's `checks.yml` (no unit tests, no stack_check) so feedback is fast.
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Code style (astyle + diff)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install astyle
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y astyle
+
+      - name: make check_format
+        run: make check_format
+
+      - name: make check_newlines
+        run: make check_newlines
