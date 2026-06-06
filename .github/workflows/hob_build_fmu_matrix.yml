@@ -1,9 +1,8 @@
 name: HOB Build FMU Matrix
 
 # Builds HOB firmware for supported Pixhawk targets.
-# Currently builds only px4_fmu-v5_default (Pixhawk 4).
-# To enable Pixhawk 6c mini support once the hardware arrives, add
-# `- px4_fmu-v6c_default` to matrix.target below.
+# Pixhawk 4 (fmu-v5) kept for reference; Pixhawk 6C Mini (fmu-v6c) is the
+# active flight controller.
 #
 # Toolchain pinning for reproducibility:
 #   - Runner OS:           ubuntu-22.04 (pin, do not use ubuntu-latest)
@@ -46,6 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          - px4_fmu-v6c_default
           - px4_fmu-v5_default
     steps:
       - name: Checkout
