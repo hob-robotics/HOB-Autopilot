@@ -75,10 +75,14 @@ jobs:
           arm-none-eabi-size "$ELF" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+      - name: Set build label
+        id: label
+        run: echo "label=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hob-firmware-${{ matrix.target }}-${{ github.sha }}
+          name: hob-firmware-${{ steps.label.outputs.label }}-${{ matrix.target }}
           path: build/${{ matrix.target }}/*.px4
           retention-days: 90
           if-no-files-found: error

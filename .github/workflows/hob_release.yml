@@ -1,0 +1,119 @@
+name: HOB Release
+
+# Run this from GitHub UI: Actions -> HOB Release -> Run workflow
+# Enter the HOB version number (e.g. 0.1.0) and click Run.
+#
+# What it does:
+#   1. Creates git tag v1.17.0-<version> on main
+#   2. Builds firmware (both targets) from that tag
+#   3. Creates a GitHub Release with the .px4 files attached
+#
+# QGC will show: Firmware 1.17.0 / Custom 0.N.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      hob_version:
+        description: 'HOB version (e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+
+  # ── Step 1: create the git tag on main ──────────────────────────────────────
+  create-tag:
+    name: Tag main
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify tag does not exist
+        run: |
+          TAG="v1.17.0-${{ inputs.hob_version }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
+            echo "ERROR: tag ${TAG} already exists — bump the version number"
+            exit 1
+          fi
+
+      - name: Create and push tag
+        id: tag
+        run: |
+          TAG="v1.17.0-${{ inputs.hob_version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "HOB release ${TAG}"
+          git push origin "${TAG}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+  # ── Step 2: build firmware from the tagged commit ───────────────────────────
+  build:
+    name: Build ${{ matrix.target }}
+    needs: create-tag
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - px4_fmu-v6c_default
+          - px4_fmu-v5_default
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag.outputs.tag }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install PX4 toolchain
+        run: bash ./Tools/setup/ubuntu.sh --no-sim-tools
+
+      - name: Build ${{ matrix.target }}
+        run: make ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.create-tag.outputs.tag }}-${{ matrix.target }}
+          path: build/${{ matrix.target }}/*.px4
+          retention-days: 90
+          if-no-files-found: error
+
+  # ── Step 3: publish GitHub Release with .px4 files attached ─────────────────
+  release:
+    name: Publish release
+    needs: [create-tag, build]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: firmware/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.create-tag.outputs.tag }}
+        run: |
+          gh release create "${TAG}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "HOB ${TAG}" \
+            --notes "Pixhawk 6C Mini (fmu-v6c) — active target
+Pixhawk 4 (fmu-v5) — reference build
+
+Flash via QGC: Vehicle Setup > Firmware > Advanced > Custom firmware file" \
+            $(find firmware -name "*.px4" | sort)
